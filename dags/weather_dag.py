@@ -9,6 +9,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 
 def kelvin_to_fahrenheit(temp_in_kelvin):
+    
     return (temp_in_kelvin - 273.15) * (9 / 5) + 32
 
 
@@ -16,8 +17,12 @@ def kelvin_to_fahrenheit(temp_in_kelvin):
 def extract_weather_data(**context):
     http_hook = HttpHook(method='GET', http_conn_id='weathermap_api')
     response = http_hook.run(
-        endpoint='/data/2.5/weather?q=Portland&APPID='
-    )
+    endpoint='/data/2.5/weather',
+    data={
+        'q': 'Portland',
+        'appid': '923288984ee563b31e8904c7bccc9401'
+    }
+)
     data = response.json()
     context['ti'].xcom_push(key='weather_data', value=data)
 
