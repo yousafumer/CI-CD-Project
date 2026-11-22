@@ -2,6 +2,57 @@
 
 Airflow (Docker, CeleryExecutor) DAG that pulls Portland weather from the OpenWeather API. Deployed to AWS EC2 with GitHub Actions.
 
+## Architecture Diagram
+
+```mermaid
+flowchart LR
+    DEV[Developer] -->|Push or Pull Request| GH[GitHub Repository]
+    GH -->|Webhook| GA[GitHub Actions CI/CD]
+
+    subgraph CI[Continuous Integration]
+        GA --> SYNTAX[Python Syntax Check]
+        SYNTAX --> COMPOSE[Validate Docker Compose]
+        COMPOSE --> BUILD[Build Docker Image]
+    end
+
+    BUILD -->|Push to main only| DEPLOY[Deploy over SSH]
+    DEPLOY --> EC2[AWS EC2]
+
+    subgraph DOCKER[Docker Compose Runtime]
+        EC2 --> API[Airflow API Server :8080]
+        EC2 --> SCHED[Airflow Scheduler]
+        EC2 --> DAGP[Airflow DAG Processor]
+        EC2 --> WORKER[Airflow Celery Worker]
+        EC2 --> TRIGGER[Airflow Triggerer]
+        EC2 --> INIT[Airflow Init]
+        EC2 --> REDIS[(Redis)]
+        EC2 --> POSTGRES[(PostgreSQL)]
+
+        SCHED --> REDIS
+        WORKER --> REDIS
+        WORKER --> POSTGRES
+        DAGP --> POSTGRES
+        API --> POSTGRES
+    end
+
+    API -->|View and trigger DAG| USER[Browser / User]
+    WEATHER[OpenWeather API] -->|Portland weather JSON| SENSOR[HttpSensor]
+    SENSOR --> EXTRACT[Extract Weather Data]
+    EXTRACT --> TRANSFORM[Transform Data]
+    TRANSFORM --> XCOM[Airflow XCom]
+
+    DAGP --> SENSOR
+    SCHED --> SENSOR
+```
+
+## Project Flow
+
+1. Developer pushes code or opens a pull request against `main`.
+2. GitHub Actions runs the Python syntax check, validates Docker Compose, and builds the Docker image.
+3. For a push to `main`, GitHub Actions connects to the EC2 instance over SSH.
+4. EC2 pulls the latest code and runs `docker compose up -d --build`.
+5. The `weather_dag` runs every five minutes, checks the OpenWeather API, extracts Portland weather data, and transforms it for downstream processing.
+
 ## Airflow Installation (EC2, Amazon Linux)
 
 1. Launch EC2 (t2.xlarge, 32 GB storage). Security group inbound: `22` and `8080` from your IP.
@@ -18,8 +69,8 @@ Airflow (Docker, CeleryExecutor) DAG that pulls Portland weather from the OpenWe
    ```
 3. Clone and configure:
    ```bash
-   git clone https://github.com/ayanhussain81/Airflow-OpenWeather-Pipeline.git
-   cd Airflow-OpenWeather-Pipeline
+   git clone https://github.com/yousafumer/CI-CD-Project.git
+   cd CI-CD-Project
    mkdir -p dags logs plugins config
    cp .env.example .env
    ```
@@ -38,7 +89,7 @@ Airflow (Docker, CeleryExecutor) DAG that pulls Portland weather from the OpenWe
 
 ## CI/CD (GitHub Actions)
 
-Workflow: `.github/workflows/ci-cd.yml`
+Workflow: `.github/workflows/cicd.yml`
 
 - **Trigger:** push or pull request to `main`.
 - **CI job:** Python syntax check, `docker compose config`, `docker compose build`.
